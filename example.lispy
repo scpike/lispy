@@ -1,0 +1,2 @@
+(defn area (x y) (* x y))
+(area 3 4)
