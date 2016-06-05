@@ -1,20 +1,20 @@
 #!/usr/bin/env ruby
 
-require "readline"
+require 'readline'
 
 def tokenize(str)
-  toks = str
-         .gsub("\n", ' ')
-         .gsub('(', '( ').gsub(')', ' )')
-         .gsub(/^\(/, '')
-         .gsub(/\)$/, '')
-         .split(/\s+/)
-         .reject { |s| s.strip == '' }
+  str
+    .gsub("\n", ' ')
+    .gsub('(', '( ').gsub(')', ' )')
+    .gsub(/^\(/, '')
+    .gsub(/\)$/, '')
+    .split(/\s+/)
+    .reject { |s| s.strip == '' }
 end
 
 LispSymbol = Struct.new(:val) do
-  def ==(o)
-    o.to_s == to_s 
+  def ==(other)
+    other.to_s == to_s
   end
 
   def to_s
@@ -22,6 +22,7 @@ LispSymbol = Struct.new(:val) do
   end
 end
 
+# Parser a bit of lisp code into a ruby data structure
 class Parser
   def typeify(t)
     if t =~ /^-?\d+$/
@@ -46,12 +47,12 @@ class Parser
     instack = 0
     tokenize(str).each do |t|
       ary = acc
-      instack.times { |t| ary = ary.last }
+      instack.times { |_t| ary = ary.last }
 
       if t == '('
         instack += 1
         ary << []
-      elsif t == ')' 
+      elsif t == ')'
         instack -= 1
       else
         ary << typeify(t)
@@ -61,6 +62,7 @@ class Parser
   end
 end
 
+# Evaluate a bit of lisp code, returning the result
 class Evaluator
   attr_accessor :env
   def initialize(env = nil)
@@ -86,8 +88,8 @@ class Evaluator
 
     %w(> >= < <=).each { |cmp| env[cmp] = -> (x, y) { x.send(cmp, y) } }
 
-    %w(+ * / -).each do |builtin_op|
-      env[builtin_op] = -> (*args) { args.reduce { |acc, x| acc.send(builtin_op, x) }}
+    %w(+ * / -).each do |op|
+      env[op] = -> (*args) { args.reduce { |a, e| a.send(op, e) } }
     end
 
     env
@@ -95,7 +97,7 @@ class Evaluator
 
   def make_lambda(args, exp, env)
     local_env = env.dup
-    Proc.new do |*local_args|
+    proc do |*local_args|
       args.zip(local_args).each { |a, v| local_env[a.to_s] = v }
       eval_toks(exp, local_env)
     end
@@ -114,7 +116,7 @@ class Evaluator
       env[fname.to_s] = make_lambda(argl, exp, env)
     elsif t[0] == 'doall'
       (_, *exps) = t
-      exps.map { |exp| eval_toks(exp, env) }.last
+      exps.map { |e| eval_toks(e, env) }.last
     elsif t[0] == 'if'
       (_, pred, texp, fexp) = t
       eval_toks(pred, env) ? eval_toks(texp, env) : eval_toks(fexp, env)
@@ -130,7 +132,7 @@ class Evaluator
       if op
         op.call(*t.map { |y| eval_toks(y, env) })
       else
-        raise NoMethodError, "Unrecognized operator #{opname}"
+        fail NoMethodError, "Unrecognized operator #{opname}"
       end
     end
   end
@@ -142,13 +144,11 @@ class Evaluator
   end
 end
 
-
 def repl
   evaler = Evaluator.new
-  cmd = nil
-  while buf = Readline.readline("lispy> ", true)
+  while (buf = Readline.readline('lispy> ', true))
     begin
-      print "-> ", evaler.eval_lisp(buf).inspect, "\n"
+      print '-> ', evaler.eval_lisp(buf).inspect, "\n"
     rescue NoMethodError => e
       print "$NoMethodError: #{e.message}\n"
     rescue TypeError => e
@@ -160,14 +160,14 @@ end
 def eval_file(f)
   code = File.read(f)
   evaler = Evaluator.new
-  code = """
+  code = ''"
 (doall
   #{code})
-"""
+"''
   evaler.eval_lisp(code)
 end
 
-if __FILE__ == $0
+if __FILE__ == $PROGRAM_NAME
   if ARGV.any?
     p eval_file ARGV[0]
   else
